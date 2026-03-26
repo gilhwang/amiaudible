@@ -1,73 +1,149 @@
-# React + TypeScript + Vite
+# amiaudible
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A browser-based pre-meeting device check tool. Verify your microphone, camera, and speakers before joining an online call — entirely client-side, with no data leaving your browser.
 
-Currently, two official plugins are available:
+**[Live demo](https://giyuhwang.github.io/amiaudible/)**
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Microphone check** — real-time volume meter with RMS level visualization
+- **Camera check** — live video preview with multi-device selection
+- **Speaker check** — synthesized C-major arpeggio chime with user confirmation
+- **Privacy-first** — all processing happens locally; no network calls, no backend
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## System Architecture
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Overview
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Browser (Client Only)                     │
+│                    No backend · No network calls                 │
+│                                                                  │
+│  index.html → main.tsx → App.tsx                                 │
+│                              │                                   │
+│              ┌───────────────┼───────────────┐                   │
+│              ▼               ▼               ▼                   │
+│        MicCheck.tsx    CameraCheck.tsx   SpeakerCheck.tsx        │
+│              │               │               │                   │
+│    ┌─────────┘    ┌──────────┘       ┌───────┘                   │
+│    │  Hook        │   Hook           │  Util                     │
+│    │ useMicStream │ useCameraStream  │ playChime()               │
+│    └────┬─────────┘ ────┬────────── └────────┬──────────         │
+│         │               │                    │                   │
+│    getUserMedia     getUserMedia        AudioContext             │
+│      (audio)          (video)         + OscillatorNode          │
+│         │               │              (C5 / E5 / G5)           │
+│    AnalyserNode    <video srcObject>   + GainNode (decay)        │
+│    (FFT 2048)      + enumerateDevs                               │
+│         │               │                                        │
+│    computeRMS()    DeviceSelect.tsx                              │
+│    rAF loop        (camera picker)                               │
+│         │                                                        │
+│    VolumeMeter.tsx                                               │
+│    (24 animated bars)                                            │
+│                                                                  │
+│  Shared UI: StatusBadge.tsx (ok / error / idle / warning)        │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Data Flow
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+**Microphone:**
+```
+getUserMedia(audio) → MediaStream → AnalyserNode → computeRMS() → rAF loop → rmsLevel → VolumeMeter
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+**Camera:**
+```
+getUserMedia(video) → MediaStream → <video>.srcObject → live preview
+                   → enumerateDevices() → DeviceSelect dropdown
+```
+
+**Speaker:**
+```
+AudioContext → OscillatorNode (C5/E5/G5) → GainNode (bell decay) → destination → user hears chime
+                                                                               → Yes/No confirmation
+```
+
+### Component Tree
+
+```
+App
+├── MicCheck
+│   ├── StatusBadge
+│   ├── VolumeMeter
+│   └── [useMicStream hook]
+├── CameraCheck
+│   ├── DeviceSelect
+│   ├── StatusBadge
+│   └── [useCameraStream hook]
+└── SpeakerCheck
+    ├── StatusBadge
+    └── [playChime utility]
+```
+
+### Browser APIs Used
+
+| API | Purpose |
+|---|---|
+| `navigator.mediaDevices.getUserMedia()` | Request mic and camera access |
+| `navigator.mediaDevices.enumerateDevices()` | List available input devices |
+| `AudioContext` | Audio processing graph |
+| `AnalyserNode` (FFT 2048) | Real-time microphone level analysis |
+| `OscillatorNode` + `GainNode` | Synthesize chime tones with bell decay |
+| `<video>.srcObject` | Display live camera preview |
+| `requestAnimationFrame` | Smooth volume level updates |
+
+### Tech Stack
+
+| Layer | Technology |
+|---|---|
+| UI | React 19 + TypeScript |
+| Styling | Tailwind CSS 4 |
+| Build | Vite 8 |
+| State | React Hooks only (`useState`, `useRef`, `useCallback`, `useEffect`) |
+| Linting | ESLint 9 (flat config) |
+| Deployment | GitHub Pages via GitHub Actions |
+
+### File Structure
+
+```
+src/
+├── main.tsx                    # React entry point
+├── App.tsx                     # Root layout (header, 3 steps, footer)
+├── index.css                   # Tailwind import
+├── components/
+│   ├── MicCheck.tsx            # Microphone test UI
+│   ├── CameraCheck.tsx         # Camera test UI
+│   ├── SpeakerCheck.tsx        # Speaker test UI
+│   ├── VolumeMeter.tsx         # Animated audio level bars
+│   ├── StatusBadge.tsx         # ok/error/idle/warning indicator
+│   └── DeviceSelect.tsx        # Camera device picker dropdown
+├── hooks/
+│   ├── useMicStream.ts         # Microphone stream + RMS logic
+│   ├── useCameraStream.ts      # Camera stream + device enumeration
+│   └── useDevices.ts           # Generic device enumeration (unused)
+└── utils/
+    └── audio.ts                # AudioContext singleton, computeRMS(), playChime()
+```
+
+### CI/CD
+
+Push to `main` → GitHub Actions → `tsc -b && vite build` → deploy `dist/` to GitHub Pages at `/amiaudible/`
+
+---
+
+## Local Development
+
+```bash
+npm install
+npm run dev       # dev server with HMR at localhost:5173
+npm run build     # type-check + production bundle
+npm run preview   # preview built dist locally
+npm run lint      # ESLint
 ```
