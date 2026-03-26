@@ -5,24 +5,18 @@ interface Props {
   message: string
 }
 
-const styles: Record<Status, string> = {
-  ok: 'bg-green-100 text-green-800 border-green-200',
-  error: 'bg-red-100 text-red-800 border-red-200',
-  idle: 'bg-slate-100 text-slate-600 border-slate-200',
-  warning: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-}
-
-const icons: Record<Status, string> = {
-  ok: '✓',
-  error: '✕',
-  idle: '○',
-  warning: '!',
+const config: Record<Status, { dot: string; text: string; bg: string; pulse: boolean }> = {
+  ok:      { dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200',  pulse: false },
+  error:   { dot: 'bg-rose-500',    text: 'text-rose-700',    bg: 'bg-rose-50 border-rose-200',        pulse: false },
+  idle:    { dot: 'bg-slate-400',   text: 'text-slate-600',   bg: 'bg-slate-50 border-slate-200',      pulse: false },
+  warning: { dot: 'bg-amber-500',   text: 'text-amber-700',   bg: 'bg-amber-50 border-amber-200',      pulse: true  },
 }
 
 export function StatusBadge({ status, message }: Props) {
+  const c = config[status]
   return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-sm font-medium ${styles[status]}`}>
-      <span className="font-bold">{icons[status]}</span>
+    <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium ${c.bg} ${c.text}`}>
+      <span className={`size-2 rounded-full flex-shrink-0 ${c.dot} ${c.pulse ? 'animate-pulse' : ''}`} />
       {message}
     </span>
   )
