@@ -10,14 +10,11 @@ export function useMicStream() {
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const rafRef = useRef<number>(0)
-
-  const loop = useCallback(() => {
-    if (!analyserRef.current) return
-    setRmsLevel(computeRMS(analyserRef.current))
-    rafRef.current = requestAnimationFrame(loop)
-  }, [])
+  const isStartingRef = useRef(false)
 
   const start = useCallback(async () => {
+    if (isStartingRef.current) return
+    isStartingRef.current = true
     setError(null)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -25,6 +22,13 @@ export function useMicStream() {
 
       const ctx = getAudioContext()
       await ctx.resume()
+
+      if (ctx.state !== 'running') {
+        stream.getTracks().forEach(t => t.stop())
+        streamRef.current = null
+        setError('Audio system could not start. Try clicking again.')
+        return
+      }
 
       const source = ctx.createMediaStreamSource(stream)
       const analyser = ctx.createAnalyser()
@@ -35,14 +39,37 @@ export function useMicStream() {
       analyserRef.current = analyser
 
       setIsActive(true)
-      rafRef.current = requestAnimationFrame(loop)
+
+      const tick = () => {
+        if (!analyserRef.current) return
+        setRmsLevel(computeRMS(analyserRef.current))
+        rafRef.current = requestAnimationFrame(tick)
+      }
+      rafRef.current = requestAnimationFrame(tick)
     } catch (err) {
-      const msg = err instanceof DOMException && err.name === 'NotAllowedError'
-        ? 'Microphone access was denied. Allow it in your browser settings and try again.'
-        : 'Could not access microphone. Make sure one is connected.'
+      let msg: string
+      if (err instanceof DOMException) {
+        switch (err.name) {
+          case 'NotAllowedError':
+            msg = 'Microphone access was denied. Allow it in your browser settings and try again.'
+            break
+          case 'NotFoundError':
+            msg = 'No microphone found. Make sure one is connected and try again.'
+            break
+          case 'NotReadableError':
+            msg = 'Microphone is in use by another application. Close it and try again.'
+            break
+          default:
+            msg = 'Could not access microphone. Make sure one is connected.'
+        }
+      } else {
+        msg = 'Could not access microphone. Make sure one is connected.'
+      }
       setError(msg)
+    } finally {
+      isStartingRef.current = false
     }
-  }, [loop])
+  }, [])
 
   const stop = useCallback(() => {
     cancelAnimationFrame(rafRef.current)

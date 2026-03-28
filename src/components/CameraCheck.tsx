@@ -54,7 +54,7 @@ export function CameraCheck({ step }: Props) {
           {isActive ? (
             <StatusBadge status="ok" message="Camera is working" />
           ) : error ? (
-            <StatusBadge status="error" message="Access denied — check browser settings" />
+            <StatusBadge status="error" message="Camera unavailable" />
           ) : (
             <StatusBadge status="idle" message="Not started" />
           )}

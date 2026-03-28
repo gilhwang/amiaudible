@@ -13,9 +13,17 @@ export function SpeakerCheck({ step }: Props) {
   const handlePlay = useCallback(async () => {
     setIsPlaying(true)
     setResult(null)
-    await getAudioContext().resume()
-    await playChime()
-    setIsPlaying(false)
+    try {
+      const ctx = getAudioContext()
+      await ctx.resume()
+      // Guard: if the context is still not running (e.g. browser policy blocked it),
+      // bail out — otherwise playChime()'s oscillators are scheduled on a frozen clock
+      // and onended never fires, leaving isPlaying stuck true forever.
+      if (ctx.state !== 'running') return
+      await playChime()
+    } finally {
+      setIsPlaying(false)
+    }
   }, [])
 
   return (
@@ -65,7 +73,7 @@ export function SpeakerCheck({ step }: Props) {
           </button>
         </div>
 
-        {!isPlaying && result === null ? null : !isPlaying && (
+        {result !== null && !isPlaying && (
           <div className="flex items-center gap-3 pt-1 border-t border-slate-100">
             <p className="text-sm text-slate-500 flex-1">Did you hear the chime?</p>
             <button

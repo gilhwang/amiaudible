@@ -41,7 +41,7 @@ export function MicCheck({ step }: Props) {
               message={rmsLevel > 0.01 ? 'Signal detected' : 'Listening — speak now'}
             />
           ) : error ? (
-            <StatusBadge status="error" message="Access denied — check browser settings" />
+            <StatusBadge status="error" message="Microphone unavailable" />
           ) : (
             <StatusBadge status="idle" message="Not started" />
           )}

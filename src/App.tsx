@@ -1,6 +1,7 @@
 import { MicCheck } from './components/MicCheck'
 import { CameraCheck } from './components/CameraCheck'
 import { SpeakerCheck } from './components/SpeakerCheck'
+import { NetworkCheck } from './components/NetworkCheck'
 
 function App() {
   return (
@@ -31,12 +32,13 @@ function App() {
           <MicCheck step={1} />
           <CameraCheck step={2} />
           <SpeakerCheck step={3} />
+          <NetworkCheck step={4} />
         </div>
       </main>
 
       <footer className="px-6 py-4 text-center">
         <p className="text-xs text-slate-400">
-          No data leaves your browser — everything runs locally on your device.
+          Audio and video never leave your browser — the speed test only downloads a file to measure your connection.
         </p>
       </footer>
     </div>

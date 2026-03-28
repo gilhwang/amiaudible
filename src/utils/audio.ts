@@ -5,15 +5,20 @@ export function getAudioContext(): AudioContext {
   return ctx
 }
 
+// Reused across frames to avoid per-frame allocation
+let rmsBuffer: Uint8Array<ArrayBuffer> | null = null
+
 export function computeRMS(analyser: AnalyserNode): number {
-  const data = new Uint8Array(analyser.fftSize)
-  analyser.getByteTimeDomainData(data)
+  if (!rmsBuffer || rmsBuffer.length !== analyser.fftSize) {
+    rmsBuffer = new Uint8Array(analyser.fftSize)
+  }
+  analyser.getByteTimeDomainData(rmsBuffer)
   let sum = 0
-  for (let i = 0; i < data.length; i++) {
-    const normalized = (data[i] - 128) / 128
+  for (let i = 0; i < rmsBuffer.length; i++) {
+    const normalized = (rmsBuffer[i] - 128) / 128
     sum += normalized * normalized
   }
-  return Math.sqrt(sum / data.length)
+  return Math.sqrt(sum / rmsBuffer.length)
 }
 
 // Plays a gentle C-major arpeggio chime (C5 → E5 → G5) with bell-like decay.
@@ -27,10 +32,8 @@ export function playChime(): Promise<void> {
   const noteSpacing = 0.14
 
   return new Promise(resolve => {
-    const lastStart = actx.currentTime + noteSpacing * (notes.length - 1)
-    const endTime = lastStart + noteDuration
-
     notes.forEach((freq, i) => {
+      const isLast = i === notes.length - 1
       const t = actx.currentTime + i * noteSpacing
 
       // Fundamental
@@ -45,6 +48,12 @@ export function playChime(): Promise<void> {
       gain.connect(actx.destination)
       osc.start(t)
       osc.stop(t + noteDuration)
+      // Disconnect gain on end; resolve promise on the last note (audio-clock accurate,
+      // immune to background-tab setTimeout throttling)
+      osc.onended = () => {
+        gain.disconnect()
+        if (isLast) resolve()
+      }
 
       // Soft harmonic for bell-like richness
       const osc2 = actx.createOscillator()
@@ -58,9 +67,7 @@ export function playChime(): Promise<void> {
       gain2.connect(actx.destination)
       osc2.start(t)
       osc2.stop(t + noteDuration * 0.6)
+      osc2.onended = () => gain2.disconnect()
     })
-
-    // Resolve after the full chime has played
-    setTimeout(resolve, (endTime - actx.currentTime) * 1000)
   })
 }
